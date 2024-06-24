@@ -578,8 +578,13 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
     )
 )
 
+# Output of the preprocessing.
+data <- read_csv("..\\dataset.csv")
+# Remove patient ID column
+data <- data[, -1]
+
 obj <- NetworkAnalysis$new(
-  dataset = data[, -1], n_boots = 10,
-  save_location = "D:\\Programming\\uva\\2023-2024\\scriptie\\images\\"
+  dataset = data, n_boots = 10,
+  save_location = "..\\images\\"
 )
 obj$plot_functions()
