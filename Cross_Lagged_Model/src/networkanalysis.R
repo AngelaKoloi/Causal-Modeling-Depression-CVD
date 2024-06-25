@@ -222,7 +222,7 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
             "Crying", "Agitation", "Loss Of Interest", "Indecisiveness", "Worthlessness",
             "Loss Of Energy", "Changes In Sleep Pattern", "Irritability", "Changes In Appetite",
             "Concentration Difficulty", "Tiredness Or Fatigue", "Loss Of Interest In Sex",
-            "Acetate", "Apoprotein", "C-reactive Protein", "Diastolic Korokoff V", "Glutarylation", "Cholesterol HDL",
+            "Acetate", "Apoprotein", "C-reactive Protein", "Diastolic Blood Pressure", "Glucose", "Cholesterol HDL",
             "Insulide", "Cholesterol LDL", "Systolic Blood Pressure", "Cholesterol Total", "Triglycerides"
         ),
         var_start_time = NULL,
@@ -275,21 +275,17 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
         #' Function to remove the edges between nodes in the same group from the network graph.
         #' Extra option to also remove self-edges.
         #' @param network A list containing the network information, including the graph.
-        #' @param remove_group_edge A logical value indicating whether to remove self-edges. Default is FALSE.
         #' @return The input network with group-edges removed from the graph.
         #' @examples
-        #' remove_group_edge(network, remove_group_edge = TRUE)
-        remove_group_edge = function(network, remove_group_edge = FALSE) {
+        #' remove_group_edge(network)
+        remove_group_edge = function(network) {
             colnames(network$graph) <- network$colNames
             row_suffixes <- sapply(rownames(network$graph), private$get_suffix)
             col_suffixes <- sapply(colnames(network$graph), private$get_suffix)
-
+            
             for (i in 1:nrow(network$graph)) {
                 for (j in 1:ncol(network$graph)) {
-                    if (i == j && remove_group_edge) {
-                        break
-                    }
-                    if (row_suffixes[i] == col_suffixes[j]) {
+                    if (row_suffixes[i] == col_suffixes[j] && i != j) {
                         network$graph[i, j] <- 0
                     }
                 }
@@ -494,11 +490,12 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
 
             plot(igraph,
                 layout = layout,
-                vertex.color = c(rep("royalblue", 21), rep("orange", 11)),
+                vertex.color = c(rep("cornflowerblue", 21), rep("orange", 11)),
                 vertex.size = node_size,
                 vertex.label.family = "sans",
                 vertex.label = V(igraph)$name,
                 vertex.label.font = font,
+                vertex.label.cex = 1.8,
                 edge.color = ifelse(E(igraph)$weight > 0, "blue", "red"),
                 edge.width = ((abs(E(igraph)$weight) / max_edge) * edge_width),
                 edge.arrow.width = arrow_width,
@@ -507,15 +504,15 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
 
             if (legend) {
                 legend_labels <- c("Depression", "CVD")
-                legend_colors <- c("royalblue", "orange")
+                legend_colors <- c("cornflowerblue", "orange")
                 legend("bottomright",
                     legend = legend_labels,
                     col = legend_colors, pch = 22, pt.bg = legend_colors,
                     pt.cex = 2.5, cex = 1.5
                 )
 
-                title(main = paste0(network$years[1], " → ", network$years[2], network$edge_type), font.main = 2)
             }
+            title(main = paste0(network$years[1], " → ", network$years[2], network$edge_type), font.main = 2)
             dev.off()
         },
         #' Helper function to plot the centrality metrics for each network in the tensor.
@@ -548,7 +545,7 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
                 ggplot(aes(x = node, y = value, group = graph, color = graph)) +
                 geom_line(aes(linetype = I("solid")), size = 1) +
                 labs(x = "", y = "") +
-                scale_color_manual(name = legend_name, values = c("royalblue", "orange", "forestgreen", "firebrick")) +
+                scale_color_manual(name = legend_name, values = c("cornflowerblue", "orange", "forestgreen", "indianred")) +
                 scale_linetype_manual(name = legend_name, values = rep("solid", length(network_list))) +
                 guides(linetype = "none") +
                 coord_flip() +
@@ -587,4 +584,5 @@ obj <- NetworkAnalysis$new(
   dataset = data, n_boots = 10,
   save_location = "..\\images\\"
 )
+
 obj$plot_functions()

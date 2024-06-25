@@ -4,9 +4,10 @@ import numpy as np
 
 def get_characteristic(df: pd.DataFrame) -> pd.DataFrame:
     df = df[[col for col in df.columns if col.endswith('_CO')]]
+    percentage = 100
 
     female_df = df[df["sex_2007_CO"] == 1]
-    male_df = df[df["sex_2007_CO"] == 1]
+    male_df = df[df["sex_2007_CO"] == 2]
 
     female_row_count = female_df.shape[0]
     male_row_count = male_df.shape[0]
@@ -15,12 +16,24 @@ def get_characteristic(df: pd.DataFrame) -> pd.DataFrame:
         "N": [female_row_count, male_row_count],
         "Age (mean) in 2007": [female_df["age_2007_CO"].mean(), male_df["age_2007_CO"].mean()],
         "Age (sd) in 2007": [female_df["age_2007_CO"].std(), male_df["age_2007_CO"].std()],
-        "Smoking (NO) in 2007": [female_df["smoking_2007_CO"].sum() / female_row_count,
-                                 male_df["smoking_2007_CO"].sum() / male_row_count],
-        "Smoking (NO) in 2011": [female_df["smoking_2007_CO"].sum() / female_row_count,
-                                 male_df["smoking_2007_CO"].sum() / male_row_count],
-        "Smoking (NO) in 2012": [female_df["smoking_2007_CO"].sum() / female_row_count,
-                                 male_df["smoking_2007_CO"].sum() / male_row_count],
+        "Smoking (NO) in 2007": [
+            (100 - (female_df["smoking_2007_CO"].sum() /
+             female_row_count) * percentage),
+            (100 - (male_df["smoking_2007_CO"].sum() /
+             male_row_count) * percentage)
+        ],
+        "Smoking (NO) in 2011": [
+            (100 - (female_df["smoking_2011_CO"].sum() /
+             female_row_count) * percentage),
+            (100 - (male_df["smoking_2011_CO"].sum() /
+             male_row_count) * percentage)
+        ],
+        "Smoking (NO) in 2012": [
+            (100 - (female_df["smoking_2012_CO"].sum() /
+             female_row_count) * percentage),
+            (100 - (male_df["smoking_2012_CO"].sum() /
+             male_row_count) * percentage)
+        ],
         "BMI (mean) in 2007": [female_df["bmi_2007_CO"].mean(), male_df["bmi_2007_CO"].mean()],
         "BMI (sd) in 2007": [female_df["bmi_2007_CO"].std(), male_df["bmi_2007_CO"].std()],
         "BMI (mean) in 2011": [female_df["bmi_2011_CO"].mean(), male_df["bmi_2011_CO"].mean()],
