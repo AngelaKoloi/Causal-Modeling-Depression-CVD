@@ -1,13 +1,13 @@
 ## Installation
 Clone the repository
+
 Go to the project directory:
 `cd Causal_Discovery`
+
 Install the required Python packages:
 `pip install -r requirements.txt`
 
 ## Usage
-You have to place the raw datasets under data directory
-
 ### Data Preparation
 Place the raw datasets under the `data` directory. Ensure that the datasets are properly named and formatted as expected by the scripts.
 
