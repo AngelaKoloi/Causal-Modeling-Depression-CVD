@@ -1,3 +1,16 @@
+#' NetworkAnalysis Class
+#'
+#' The class provides a framework for performing network analysis on datasets.
+#' It includes functionalities for initializing the analysis with a dataset,
+#' setting coefficients tensor, and managing required packages for the analysis.
+#' Additional functionalities such as bootstrapping and network visualization
+#' can be added to enhance its capabilities.
+#'
+#' Made by Tycho Stam
+#' https://github.com/kingilsildor
+#' Assumptions about the data are noted at the end of the script.
+
+
 library(R6)
 
 NetworkAnalysis <- R6Class("NetworkAnalysis",
@@ -146,10 +159,9 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
                         image_name <- paste0("network_", network$years[1], network$years[2], "_reduced.png")
                     }
                     private$helper_plot_network(network, image_name, legend, edge_width = 8)
-                    
                 }
             }
-          return(network)
+            return(network)
         },
         #' Interface function to plot the different centrality metrics for each network in the tensor.
         #' Current centrality metrics used are: betweenness, closeness, in & out strenght,and in & out expected influence.
@@ -209,7 +221,7 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
                         network$edge_type <- " Network reduced "
                         image_name <- paste0("bootWeights_", network$years[1], network$years[2], "_reduced.png")
                     }
-                    
+
                     private$helper_plot_boot_weights(network, image_name, n_cores)
                 }
             }
@@ -223,7 +235,7 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
             "Loss Of Energy", "Changes In Sleep Pattern", "Irritability", "Changes In Appetite",
             "Concentration Difficulty", "Tiredness Or Fatigue", "Loss Of Interest In Sex",
             "Acetate", "Apoprotein", "C-reactive Protein", "Diastolic Blood Pressure", "Glucose", "Cholesterol HDL",
-            "Insulide", "Cholesterol LDL", "Systolic Blood Pressure", "Cholesterol Total", "Triglycerides"
+            "Insulin", "Cholesterol LDL", "Systolic Blood Pressure", "Cholesterol Total", "Triglycerides"
         ),
         var_start_time = NULL,
         var_stop_time = NULL,
@@ -282,7 +294,7 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
             colnames(network$graph) <- network$colNames
             row_suffixes <- sapply(rownames(network$graph), private$get_suffix)
             col_suffixes <- sapply(colnames(network$graph), private$get_suffix)
-            
+
             for (i in 1:nrow(network$graph)) {
                 for (j in 1:ncol(network$graph)) {
                     if (row_suffixes[i] == col_suffixes[j] && i != j) {
@@ -510,9 +522,9 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
                     col = legend_colors, pch = 22, pt.bg = legend_colors,
                     pt.cex = 2.5, cex = 1.5
                 )
-
+                title(main = paste0(network$years[1], " → ", network$years[2], network$edge_type), font.main = 2)
             }
-            title(main = paste0(network$years[1], " → ", network$years[2], network$edge_type), font.main = 2)
+
             dev.off()
         },
         #' Helper function to plot the centrality metrics for each network in the tensor.
@@ -563,26 +575,32 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
         #' @examples
         #' helper_plot_boot_weights(network, "bootWeights.png")
         helper_plot_boot_weights = function(network, image_name, n_cores) {
-          bootnet <- bootnet(network,
-                             default = "EBICglasso",
-                             nBoots = self$n_boots, nCores = n_cores)
-          
-          ggsave(filename = paste0(self$save_location, image_name),
-                 width = 10, height = 7, units = "in",
-                 plot = plot(bootnet, labels = FALSE, order = "sample"),
-                 )
+            bootnet <- bootnet(network,
+                default = "EBICglasso",
+                nBoots = self$n_boots, nCores = n_cores
+            )
+
+            ggsave(
+                filename = paste0(self$save_location, image_name),
+                width = 10, height = 7, units = "in",
+                plot = plot(bootnet, labels = FALSE, order = "sample"),
+            )
         }
     )
 )
+
+#' The script is build on the assumption that the data is already preprocessed and saved as a CSV file.
+#' The output of the preprocessing is a dataframe with floating types expect for the patient ID column.
 
 # Output of the preprocessing.
 data <- read_csv("..\\dataset.csv")
 # Remove patient ID column
 data <- data[, -1]
 
+# Create the network object
 obj <- NetworkAnalysis$new(
-  dataset = data, n_boots = 10,
-  save_location = "..\\images\\"
+    dataset = data, n_boots = 10,
+    save_location = "..\\images\\"
 )
 
 obj$plot_functions()
