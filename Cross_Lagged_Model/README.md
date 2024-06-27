@@ -35,4 +35,6 @@ If you want to change the plot parameters I would advise to first call the `buil
 - `src/calculate_descriptive.ipynb`:  Different way to calculate the descriptives from the dataset. This is done because the function to calculate the descriptive in R uses the data imputed by the covriance.
 - `src/networkanalysis.R`: Main file for calculating the Cross-Lagged Model, using the glmnet package.
 
-
+## Author
+Code is writen by Tycho Stam
+https://github.com/kingilsildor
