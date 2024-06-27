@@ -1,0 +1,17 @@
+name: lifelines_analysis
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python ~= 3.12.1
+  - numpy ~= 1.26.4
+  - pandas ~= 2.2.1
+  - scipy ~= 1.12.0
+  - plotly ~= 5.9.0
+  - matplotlib ~= 3.8.0
+  - tqdm ~= 4.65.0
+  - glmnet ~= 2.0.0
+  - pyqtgraph ~= 0.13.1
+  - networkx ~= 3.1
+  - jupyterlab ~= 4.0.11
+  - statsmodels ~= 0.14.0

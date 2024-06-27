@@ -172,6 +172,7 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
         plot_centralities = function(decreasing = TRUE,
                                      legend_name = "Centrality metric for each timestep") {
             network_list <- list()
+            network_list_reduced <- list()
             for (group_edge in c(TRUE, FALSE)) {
                 for (i in 1:dim(self$tensor)[3]) {
                     graph <- self$tensor[, , i]
@@ -183,7 +184,6 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
                             network$colNames,
                             function(x) sub("_.*", "", x)
                         )
-                        indicator <- 2
                         network$edge_type <- ""
                     } else {
                         indicator <- 0
@@ -191,10 +191,16 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
                         network$edge_type <- "reduced"
                     }
                     network$name <- paste(network$year[1], "→", network$year[2], network$edge_type)
-                    network_list[[i + indicator]] <- network
+
+                    if (group_edge) {
+                        network_list[[i]] <- network
+                    } else {
+                        network_list_reduced[[i]] <- network
+                    }
                 }
             }
             private$helper_plot_centrality(network_list, legend_name)
+            private$helper_plot_centrality(network_list_reduced, legend_name, reduced = TRUE)
         },
         #' Interface function to plot the bootstrapped weights for each network in the tensor.
         #' Helper function to plot the bootstrapped weight is called for each network in the tensor.
@@ -234,7 +240,7 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
             "Crying", "Agitation", "Loss Of Interest", "Indecisiveness", "Worthlessness",
             "Loss Of Energy", "Changes In Sleep Pattern", "Irritability", "Changes In Appetite",
             "Concentration Difficulty", "Tiredness Or Fatigue", "Loss Of Interest In Sex",
-            "Acetate", "Apoprotein", "C-reactive Protein", "Diastolic Blood Pressure", "Glucose", "Cholesterol HDL",
+            "Acetate", "Apolipoprotein", "C-reactive Protein", "Diastolic Blood Pressure", "Glucose", "Cholesterol HDL",
             "Insulin", "Cholesterol LDL", "Systolic Blood Pressure", "Cholesterol Total", "Triglycerides"
         ),
         var_start_time = NULL,
@@ -534,7 +540,20 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
         #' @param decreasing A logical value indicating whether the centrality metrics should be sorted in decreasing order. Default is TRUE.
         #' @examples
         #' helper_plot_centrality(network_list, "Centrality metric for each timestep")
-        helper_plot_centrality = function(network_list, legend_name, decreasing = TRUE) {
+        helper_plot_centrality = function(network_list, legend_name, reduced = FALSE, decreasing = TRUE) {
+            symptoms <- list(
+                "Insulin", "C-reactive Protein", "Glucose", "Triglycerides",
+                "Cholesterol HDL", "Cholesterol LDL", "Cholesterol Total", "Apolipoprotein",
+                "Acetate", "Systolic Blood Pressure", "Diastolic Blood Pressure",
+                "Worthlessness", "Tiredness Or Fatigue", "Suicidal Thought Or Wishes",
+                "Self Dislike", "Self Criticalness", "Sadness", "Punishment Feelings",
+                "Pessimism", "Past Failure", "Loss Of Pleasure", "Loss Of Interest In Sex",
+                "Loss Of Interest", "Loss Of Energy", "Irritability", "Indecisiveness",
+                "Guilty Feelings", "Crying", "Concentration Difficulty", "Changes In Sleep Pattern",
+                "Changes In Appetite", "Agitation"
+            )
+
+
             df <- data.frame()
             for (i in seq_along(network_list)) {
                 network <- network_list[[i]]
@@ -551,9 +570,9 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
                 mutate(
                     graph = case_when(graph %in% unique(df$graph) ~ df$name),
                     graph = as.factor(graph),
-                    node = as.factor(node)
+                    # node = as.factor(node)
+                    node = factor(node, levels = symptoms)
                 ) %>%
-                mutate(node = fct_reorder(node, value, .desc = decreasing)) %>%
                 ggplot(aes(x = node, y = value, group = graph, color = graph)) +
                 geom_line(aes(linetype = I("solid")), size = 1) +
                 labs(x = "", y = "") +
@@ -562,9 +581,24 @@ NetworkAnalysis <- R6Class("NetworkAnalysis",
                 guides(linetype = "none") +
                 coord_flip() +
                 facet_grid(~measure) +
-                theme_bw()
+                theme_bw() +
+                theme(
+                    axis.text.y = element_text(size = 12, face = "bold"),
+                    legend.text = element_text(size = 14),
+                    legend.title = element_text(size = 14, face = "bold")
+                )
 
-            image_name <- paste0(self$save_location, "centrality_plot", network$edge_type, ".png")
+            if (reduced) {
+                image_name <- paste0(
+                    self$save_location, "centrality_plot_",
+                    network$edge_type, ".png"
+                )
+            } else {
+                image_name <- paste0(
+                    self$save_location, "centrality_plot",
+                    network$edge_type, ".png"
+                )
+            }
             ggsave(image_name, plot = plot, width = 20, height = 10)
         },
         #' Helper function to plot the bootstrapped stability of edge weight for each network in the tensor.
