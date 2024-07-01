@@ -1,8 +1,9 @@
 library(visNetwork)
 library(glue)
 library(igraph)
+library(htmlwidgets)
 
-load("causal_graph.RData")
+load("causal_graph_test.RData")
 adj_matrix <- as(graph@graph, "matrix")
 g <- graph_from_adjacency_matrix(adj_matrix, mode = "directed")
 nodes <- data.frame(id = V(g)$name, label = V(g)$name)
@@ -22,7 +23,7 @@ renamed_labels <- list(
   'aIRSsum9' = 'Sleep pattern', 'eIRSsum9' = 'Sleep pattern',
   'acidep09' = 'Major depression', 'ecidep09' = 'Major depression',
   'amet_syn2' = 'MetS', 'emet_syn2' = 'MetS',
-  'ams_waist' = 'WC', 'ems_waist' = 'WC',
+  'ams_waist' = 'Obesity', 'ems_waist' = 'Obesity',
   'ams_hpt' = 'Hypertension', 'ems_hpt' = 'Hypertension',
   'ams_trig2' = 'Hypertriglyceridemia', 'ems_trig2' = 'Hypertriglyceridemia',
   'ams_hdl2' = 'Low HDL cholesterol', 'ems_hdl2' = 'Low HDL cholesterol',
@@ -127,10 +128,13 @@ legend_nodes <- data.frame(
   stringsAsFactors = FALSE
 )
 
-visNetwork(nodes, edges) %>%
+net <- visNetwork(nodes, edges) %>%
   visEdges(arrows = 'to') %>%
   visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
   visPhysics(stabilization = FALSE) %>%
   visLayout(randomSeed = 123) %>%
   visNodes(fixed = TRUE) %>%
   visLegend(addNodes = legend_nodes, useGroups = FALSE)
+
+saveWidget(net, file = "demo.html", selfcontained = TRUE)
+  

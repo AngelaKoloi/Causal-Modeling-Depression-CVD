@@ -44,12 +44,7 @@ These steps will produce cleaned and discretized datasets for each wave.
 ```
 cd src
 ```
-2. Run the tcp.py script to generate the network CSV file:
-
-```
-python tcp.py
-```
-This will produce a network.csv file, which will be used in the demo notebook. A pre-generated network.csv can also be found under the data directory.
+2. Run the `causal_discovery.R` script to generate the network. This will produce a .RData file, which will be used in network.R. 
 
 ### Visualize the Network
-Open and run all cells in the `demo_causal_discovery.ipynb` notebook. This will generate visualizations of the causal network based on the generated or pre-existing network CSV file.
+Open demo.html in your browser

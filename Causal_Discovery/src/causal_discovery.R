@@ -2,14 +2,14 @@ library(tpc)
 library(micd)
 library(parallel)
 
-data <- read.csv("data/final_discrete_data.csv")
+data <- read.csv("data/discrete_data.csv")
 
 # convert categorical data to vectors
-for (col in names(data)) {
-  if (is.character(data[[col]])) {
-    data[[col]] <- as.factor(data[[col]])
- }
-}
+#for (col in names(data)) {
+#  if (is.character(data[[col]])) {
+#    data[[col]] <- as.factor(data[[col]])
+# }
+#}
 
 tier1 <- c('Age', 'Sexe')
 tier2 <- c('aedu', 'asmokstat', 'AIPMETO2', 'aauditsc', 'aIRSsum9', 'abaiscal', 'aids', 'acidep09', 'amet_syn2', 'ams_waist', 'ams_hpt', 'ams_trig2', 'ams_hdl2', 'ams_gluc2', 'atri_med', 'ahdl_med', 'asbp_med', 'adbp_med', 'agluc_med', 'ahsCRP', 'aIL6', 'aApoB', 'aHDL_C', 'aTotFA', 'aSerum_TG', 'aGp', 'aIle')
@@ -24,9 +24,7 @@ tiers <- c(rep(1, length(tier1)), rep(2, length(tier2)), rep(3, length(tier3)), 
 print(tiers)
 
 # Blacklist
-bl1 <- data.frame(from = c("sex"), to = c("sex"))  # No variables can cause sex
-bl2 <- data.frame(from = c("eage"), to = c("eage")) 
-bl <- rbind(bl1, bl2)
+bl <- c("sex", "Age", "eage", "Sexe")
 
 # Whitelist
 wl_tier1 <- rbind(
@@ -72,36 +70,32 @@ context_tier <- as.character(context_tier)
 print(context_tier)
 
 # Prepare forbidden edges
-forbEdges <- matrix(0, ncol = length(colnames(data)), nrow = length(colnames(data)), 
+forbEdges <- matrix(FALSE, ncol = length(colnames(data)), nrow = length(colnames(data)), 
                     dimnames = list(colnames(data), colnames(data)))
 
-for (i in 1:nrow(bl)) {
-  if (bl$from[i] %in% colnames(data) && bl$to[i] %in% colnames(data)) {
-    forbEdges[bl$from[i], bl$to[i]] <- 1
+# Populate the forbidden edges matrix
+for (var in bl) {
+  if (var %in% colnames(data)) {
+    forbEdges[, var] <- TRUE 
   }
 }
-print(forbEdges)
 
-suff.all <- getSuff(data, test = "flexMItest")
-print(str(suff.all))
-print(as.character(colnames(suff.all$datlist)))
-print(dim(suff.all$datlist))
-print(suff.all$datlist)
-print(sapply(suff.all$datlist, class))
+print(forbEdges)
+suff.all <- getSuff(data, test = "flexCItest")
+str(suff.all)
+is.list(suff.all)
 
 graph <- tpc(
-  suffStat = suff.all$datlist,
-  indepTest = flexMItest,
+  suffStat = suff.all,
+  indepTest = flexCItest,
   skel.method = "stable.parallel",
-  labels = as.character(colnames(suff.all$datlist)),
+  labels = as.character(colnames(data)),
   alpha = 0.05,
   tiers = tiers,
   forbEdges = forbEdges,
   numCores = detectCores()-1,
-  verbose = FALSE,
-  context.tier = context_tier
+  verbose = FALSE
 )
-
 
 print(graph)
 save(graph, file = "causal_graph_test.RData")
