@@ -14,10 +14,20 @@ data <- data[, tiered_variables]
 
 # Create the tiers vector based on the reordered data
 tiers <- c(rep(1, length(tier1)), rep(2, length(tier2)), rep(3, length(tier3)), rep(4, length(tier4)))
-print(tiers)
 
 # Blacklist
 bl <- c("sex", "Age", "eage", "Sexe")
+
+# Prepare forbidden edges
+forbEdges <- matrix(FALSE, ncol = length(colnames(data)), nrow = length(colnames(data)), 
+                    dimnames = list(colnames(data), colnames(data)))
+
+# Populate the forbidden edges matrix
+for (var in bl) {
+  if (var %in% colnames(data)) {
+    forbEdges[, var] <- TRUE 
+  }
+}
 
 # Whitelist
 wl_tier1 <- rbind(
@@ -34,15 +44,6 @@ wl_tier2 <- rbind(
   expand.grid(from = "ams_hpt", to = c("asbp_med", "adbp_med")),
   data.frame(from = "acidep09", to = c("aedu")),
   data.frame(from = "aauditsc", to = c("asmokstat")),
-  #expand.grid(from = c("aSerum_TG", "aHDL_C", "aApoB"), to = c("eSerumTG", "eHDLC", "eApoB")),
-  #expand.grid(from = c("aIL6", "ahsCRP"), to = c("eIL6", "eHSCRP")),
-  #data.frame(from = c("amet_syn2"), to = c("emet_syn2")),
-  #data.frame(from = c("ams_waist"), to = c("ems_waist")),
-  #data.frame(from = c("ams_hpt"), to = c("ems_hpt")),
-  #data.frame(from = c("ams_gluc2"), to = c("ems_gluc2")),
-  #expand.grid(from = c("atri_med", "ahdl_med", "asbp_med", "adbp_med", "agluc_med"), to = c("etri_med", "ehdl_med", "esbp_med", "edbp_med", "egluc_med")),
-  #data.frame(from = "acidep09", to = c("ecidep09")),
-  #data.frame(from = "aauditsc", to = c("eauditsc")),
   expand.grid(from = "asmokstat", to = c("eSerumTG", "eHDLC", "eApoB")),
   expand.grid(from = c("ahsCRP"), to = c("eIL6")),
   data.frame(from = "acidep09", to = c("emet_syn2")),
@@ -61,33 +62,38 @@ context_tier[names(data) %in% context_tier2] <- names(data)[names(data) %in% con
 context_tier <- context_tier[!is.na(context_tier)]
 print(context_tier)
 
-# Prepare forbidden edges
-forbEdges <- matrix(FALSE, ncol = length(colnames(data)), nrow = length(colnames(data)), 
-                    dimnames = list(colnames(data), colnames(data)))
-
-# Populate the forbidden edges matrix
-for (var in bl) {
-  if (var %in% colnames(data)) {
-    forbEdges[, var] <- TRUE 
+bootstrap_analysis <- function(data, drop_rate) {
+  suff_stat_list <- list()
+  for (i in 1:20) {
+    print(paste("Starting bootstrap iteration:", i))
+    boot_data <- data[sample(1:nrow(data), replace = TRUE), ]
+    final_data <- boot_data[sample(nrow(boot_data), nrow(boot_data) * (1 - drop_rate)), ]
+    
+    suff_stat <- getSuff(final_data, test = "flexCItest")
+    graph <- tpc(
+      suffStat = suff_stat,
+      indepTest = flexCItest,
+      skel.method = "stable.parallel",
+      labels = as.character(colnames(final_data)),
+      alpha = 0.05,
+      tiers = tiers,
+      forbEdges = forbEdges,
+      numCores = detectCores() - 1,
+      verbose = FALSE,
+      context.tier = context_tier
+    )
+    suff_stat_list[[i]] <- graph
   }
+  return(suff_stat_list)
 }
 
-print(forbEdges)
-suff.all <- getSuff(data, test = "flexCItest")
-str(suff.all)
-is.list(suff.all)
+set.seed(123) 
 
-graph <- tpc(
-  suffStat = suff.all,
-  indepTest = flexCItest,
-  skel.method = "stable.parallel",
-  labels = as.character(colnames(data)),
-  alpha = 0.05,
-  tiers = tiers,
-  forbEdges = forbEdges,
-  numCores = detectCores()-1,
-  verbose = FALSE,
-  context.tier = context_tier
-)
+results_0 <- bootstrap_analysis(data, 0.0)
+save(results_0, file = "bootstrap_graph.RData")
 
-save(graph, file = "causal_graph_0.05_with_whitelist.RData")
+results_10 <- bootstrap_analysis(data, 0.1)
+save(results_10, file = "bootstrap_graph_10.RData")
+
+results_20 <- bootstrap_analysis(data, 0.2)
+save(results_20, file = "bootstrap_graph_20.RData")

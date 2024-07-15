@@ -3,7 +3,8 @@ library(glue)
 library(igraph)
 library(htmlwidgets)
 
-load("causal_graph_test.RData")
+
+load("causal_graph_0.05_with_whitelist.RData")
 adj_matrix <- as(graph@graph, "matrix")
 g <- graph_from_adjacency_matrix(adj_matrix, mode = "directed")
 nodes <- data.frame(id = V(g)$name, label = V(g)$name)
@@ -136,5 +137,6 @@ net <- visNetwork(nodes, edges) %>%
   visNodes(fixed = TRUE) %>%
   visLegend(addNodes = legend_nodes, useGroups = FALSE)
 
-saveWidget(net, file = "demo.html", selfcontained = TRUE)
+saveWidget(net, file = "network.html", selfcontained = TRUE)
+net
   
