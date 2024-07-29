@@ -284,3 +284,28 @@ class DataAnalysis:
         plt.title('Mutual Information Heatmap')
         plt.show()
     
+    @staticmethod
+    def generate_descriptive_statistics(file_path, column_names, output_file):
+        df = pd.read_csv(file_path)
+        
+        missing_columns = [column for column in column_names if column not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Columns not found in the dataset: {', '.join(missing_columns)}")
+        
+        with open(output_file, 'w') as file:
+            for column in column_names:
+                data = df[column]
+                statistics = {
+                    'Mean': data.mean(),
+                    'Median': data.median(),
+                    'Mode': data.mode().iloc[0] if not data.mode().empty else None,
+                    'Standard Deviation': data.std(),
+                    'Variance': data.var(),
+                    'Range': data.max() - data.min(),
+                    'Skewness': data.skew(),
+                    'Kurtosis': data.kurt()
+                }
+                
+                file.write(f"\nDescriptive Statistics for '{column}':\n")
+                for stat, value in statistics.items():
+                    file.write(f"{stat}: {value}\n")
