@@ -52,43 +52,6 @@ class DataAnalysis:
     def describe_missingness(df):
         missing_data = df.columns[df.isnull().any()]
         return df[missing_data].describe()
-    
-    @staticmethod
-    def plot_distribution(df, columns, label_dict=None):
-        """
-        Plots the distribution of specified columns.
-
-        :param df: pandas DataFrame containing the filtered data.
-        :param columns: list of column names to plot.
-        :param label_dict: dictionary with original column names as keys and new titles as values.
-        """
-        num_cols = len(columns)
-        num_rows = math.ceil(num_cols / 3)
-        if num_cols > 2:
-            fig, axes = plt.subplots(num_rows, 3, figsize=(15, 5 * num_rows))
-        else:
-            fig, axes = plt.subplots(1, num_cols, figsize=(10, 5))
-        
-        if num_cols == 1:
-            axes = [axes]
-
-        for i, col in enumerate(columns):
-            row, col_pos = divmod(i, 3)
-            if num_cols > 1:
-                ax = axes[row, col_pos] if num_rows > 1 else axes[col_pos]
-            else:
-                ax = axes[0]
-            
-            if df[col].dtype in ['int64', 'float64']:
-                df[col].plot(kind='hist', bins=30, ax=ax, title=label_dict.get(col, col))
-            else:
-                df[col].value_counts().plot(kind='bar', ax=ax, title=label_dict.get(col, col))
-            
-            ax.set_xlabel(label_dict.get(col, col))
-            ax.set_ylabel('Frequency')
-
-        plt.tight_layout()
-        plt.show()
         
     @staticmethod
     def plot_missing_data_distribution(df):
@@ -182,58 +145,6 @@ class DataAnalysis:
         plt.show()
     
     @staticmethod
-    def plot_outliers(df, columns):
-        """
-        Plots boxplots for specified columns in a DataFrame to visualize outliers.
-
-        Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-        columns (list): List of columns to be visualized for outliers.
-        """
-        df_filtered = df[columns]
-
-        plt.figure(figsize=(15, 10))
-        sns.boxplot(data=df_filtered, orient='h', palette="Set2")
-        plt.title('Outliers Visualization')
-        plt.xlabel('Values')
-        plt.ylabel('Variables')
-        plt.show()
-    
-    @staticmethod
-    def compare_distributions(first_df, first_label, second_df, second_label, columns):
-        """
-        Plots and compares the distributions of specified columns from two DataFrames.
-
-        Parameters:
-        first_df (pd.DataFrame): First DataFrame you want to compare.
-        second_df (pd.DataFrame): Second DataFrame you want to compare.
-        columns (list): List of columns to be compared, must exist in both dataframes.
-        """
-        fig, axes = plt.subplots(nrows=len(columns), ncols=2, figsize=(15, 5 * len(columns)))
-        axes = axes.flatten()
-
-        for i, col in enumerate(columns):
-            # First data distribution
-            ax = axes[2*i]
-            first_df[col].dropna().plot(kind='hist', bins=30, ax=ax, color='blue', alpha=0.5, label=f"{first_label}")
-            ax.set_title(f'{first_label} Distribution of {col}')
-            ax.set_xlabel(col)
-            ax.set_ylabel('Frequency')
-
-            # Second data distribution
-            ax = axes[2*i + 1]
-            second_df[col].plot(kind='hist', bins=30, ax=ax, color='red', alpha=0.5, label=f"{second_label}")
-            ax.set_title(f'{second_label} Distribution of {col}')
-            ax.set_xlabel(col)
-            ax.set_ylabel('Frequency')
-
-        for j in range(2*i + 2, len(axes)):
-            fig.delaxes(axes[j])
-
-        plt.tight_layout()
-        plt.show()
-    
-    @staticmethod
     def plot_mutual_information_heatmap(file_path_wave1, file_path_wave2, column_mapping, n_neighbors=10):
         """
         Plots a heatmap of the mutual information matrix between two datasets.
@@ -284,3 +195,69 @@ class DataAnalysis:
         plt.title('Mutual Information Heatmap')
         plt.show()
     
+    @staticmethod
+    def generate_continuous_statistics(df, column_names, output_file):
+        # Replace negative values (-1, -3) with NaN
+        df[column_names] = df[column_names].replace([-1, -3], np.nan)
+        
+        missing_columns = [column for column in column_names if column not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Columns not found in the dataset: {', '.join(missing_columns)}")
+        
+        with open(output_file, 'w') as file:
+            for column in column_names:
+                data = df[column].dropna()  # Drop NaN values
+                statistics = {
+                    'N': data.count(),
+                    'Mean': round(data.mean(), 2),
+                    'Standard Deviation': round(data.std(), 2)
+                }
+                
+                file.write(f"\nDescriptive Statistics for '{column}':\n")
+                for stat, value in statistics.items():
+                    file.write(f"{stat}: {value}\n")
+
+    @staticmethod
+    def generate_categorical_statistics(df, column_names, output_file):
+        missing_columns = [column for column in column_names if column not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Columns not found in the dataset: {', '.join(missing_columns)}")
+        
+        with open(output_file, 'w') as file:
+            for column in column_names:
+                data = df[column]
+                counts = data.value_counts()
+                total = data.count()
+                frequencies = counts / total
+                
+                file.write(f"\nFrequency Distribution for '{column}':\n")
+                file.write(f"Total: {total}\n")
+                for category, count in counts.items():
+                    frequency = frequencies[category]
+                    file.write(f"{category}: Count = {count}, Frequency = {frequency:.2f}\n")
+    
+    @staticmethod
+    def plot_continuous_distribution(df, column_names, column_labels, output_folder):
+        df[column_names] = df[column_names].replace([-1, -3], np.nan)
+        
+        missing_columns = [column for column in column_names if column not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Columns not found in the dataset: {', '.join(missing_columns)}")
+        
+        num_cols = 3
+        num_rows = (len(column_names) + num_cols - 1) // num_cols
+        fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, num_rows * 5))
+        
+        for ax, column, label in zip(axes.flatten(), column_names, column_labels):
+            sns.kdeplot(df[column].dropna(), ax=ax, bw_adjust=0.5)
+            ax.set_xlabel(label)
+            ax.set_ylabel('Density')
+        
+        for i in range(len(column_names), num_rows * num_cols):
+            fig.delaxes(axes.flatten()[i])
+        
+        plt.tight_layout()
+        output_file = f"{output_folder}/density_plots.png"
+        plt.savefig(output_file)
+        plt.close()
+        

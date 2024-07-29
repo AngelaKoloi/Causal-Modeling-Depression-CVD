@@ -47,4 +47,4 @@ cd src
 2. Run the `causal_discovery.R` script to generate the network. This will produce a .RData file, which will be used in network.R. 
 
 ### Visualize the Network
-Open demo.html in your browser
+Go to https://nabilasiregar.github.io/ccg/hc/
