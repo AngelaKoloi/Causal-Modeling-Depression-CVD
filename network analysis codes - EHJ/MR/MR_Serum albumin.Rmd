@@ -1,0 +1,416 @@
+---
+title: "CVD MR"
+output: html_document
+date: "2024-02-19"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+Full MR script for one exposure and multiple outcomes.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE,
+	comment = NULL
+)
+#Try MR
+source("setup_Arja.R")
+
+# required columns for outcome: rsid, beta, se, eaf, effect_allele_col, other_allele_col, pval
+```
+
+The next two chunks are for reading in the exposure data and the outcome
+data. Add your own file names.
+
+```{r eval = FALSE}
+# read in exposure data  -  glucose
+exposure_data = read_exposure_data(
+  filename = here("/Users/angelakoloi/Desktop/yfs metabolites/2007/data/MR analysis/serum albuminRSID.tsv"),
+  sep = "\t",
+  snp_col = "RSID",
+  beta_col = "beta", 
+  se_col = "standard_error",
+  eaf_col = "effect_allele_frequency",
+    effect_allele_col = "effect_allele",
+    other_allele_col = "other_allele",
+  log_pval = FALSE,
+  pval_col = "p_value",
+  chr_col = "CHR",
+  pos_col = "BP"
+)
+exposure_data$exposure <- "serum albumin"
+```
+
+```{r eval = FALSE}
+cvd_traits <- c("PGC_UKB_depression", "ALLSTROKE", "IS", "CES", "LAS", "SVD", "CAD", "CAC", "CIMT" ) 
+
+outcome_list <- list()
+
+for (i in cvd_traits) {
+  
+  # read in outcome data, CVD
+  file <- paste0(i, "_with_RSID.tsv")
+  cat(file) 
+  
+  outcome_data = read_outcome_data(
+    filename = here("/Users/angelakoloi/Desktop/yfs metabolites/2007/data/MR analysis/", file),
+    sep = "\t",
+    snps = exposure_data$SNP, 
+    snp_col = "RSID",
+    beta_col = "beta",#calculate beta for the exposure 
+    se_col = "standard_error",
+    eaf_col = "effect_allele_frequency",
+    effect_allele_col = "effect_allele",
+    other_allele_col = "other_allele",
+    pval_col = "p_value",
+    #ncase_col = "NCAS",
+    #ncontrol_col = "NCON",
+    log_pval = FALSE,
+    chr_col = "CHR",
+    pos_col = "BP"
+  )
+  outcome_data$outcome <- i
+  
+  outcome_list[[i]] <- outcome_data
+  
+}
+
+outcome_list
+#save(outcome_list, file = here("/Users/angelakoloi/Desktop/yfs metabolites/2007/data/MR analysis/", "outcome_forMR_serum albumin.RData")) 
+```
+
+Preprocess the data: The exposure data is filtered and clumped to
+identify instruments. Then one harmonised dataframe is created from
+exposure and outcome.
+
+```{r preprocessing, eval = FALSE}
+# exposure is always from exposure_data, but outcome_data comes from outcome_list
+
+SNP_numbers <- c() # store how many SNPs are left after each filtering step
+preprocessed_list <- list()
+
+for ( i in cvd_traits){
+  outcome_data <- outcome_list[[i]]
+  
+  # Keep only SNPs that are in both datasets
+  # !! careful: refresh outcome data on every iteration but keep original exposure_data object the same
+  exposure_data_small <- exposure_data[exposure_data$SNP %in% outcome_data$SNP,]
+  outcome_data <- outcome_data[outcome_data$SNP %in% exposure_data_small$SNP,]
+  
+  # Filtering and clumping in the exposure data
+  # pvalue filter
+  exposure_data_topsnps = exposure_data_small[exposure_data_small$pval.exposure < 5e-08, ]
+  # maf filter
+  exposure_data_topsnps_maf = exposure_data_topsnps %>% filter(eaf.exposure < 0.99 & eaf.exposure > 0.01)
+  exposure_data_clumped <- clump_data(exposure_data_topsnps_maf)
+  
+  
+  # clumping
+  # using own function wrappers of plink clumping to adapt to using local ld files rather than server
+  # plink_bin <- "C:/Users/emma/AppData/Local/R/win-library/4.3/genetics.binaRies/bin/plink2.exe"
+  # bfile = here("ld_files", "g1000_eur")
+  #exposure_data_clumped <- clump_data_locally( # defaults are clump_kb = 10000, clump_r2 = 0.001
+   # dat = exposure_data_topsnps_maf, 
+   # bfile = "/Users/angelakoloi/Desktop/yfs metabolites/2007/data/MR analysis/g1000_eur",
+   # plink_bin = "/Users/angelakoloi/Downloads/plink_mac_20231211")
+ 
+  # for server version use the TwoSampleMR version clump_data(). only required input argument is dat = your dataset
+
+  harmonised_data <- harmonise_data(exposure_dat = exposure_data_clumped, outcome_dat = outcome_data)
+  
+  # Store some info about filtering process
+  SNP_numbers <- c()
+  SNP_numbers["beforefilter"] <- dim(exposure_data_small)[1]
+  SNP_numbers["pval"] <- dim(exposure_data_topsnps)[1]
+  SNP_numbers["maf"] <- dim(exposure_data_topsnps_maf)[1]
+  SNP_numbers["clumped"] <- dim(exposure_data_clumped)[1]
+  SNP_numbers["harmonised"] <- dim(harmonised_data)[1]
+  
+  # And return something
+  preprocessed_list[[i]] <- list(data = harmonised_data, log = SNP_numbers)
+}
+
+preprocessed_list
+#save(preprocessed_list, file = here("/Users/angelakoloi/Desktop/yfs metabolites/2007/data/MR analysis/", "all_processed_serum albumin.RData"))
+```
+
+Run the main MR analysis and also all the essential follow-up analyses.
+
+As described by Yuri:
+
+"First, a series of univariable 2SMR analyses were performed based on
+the inverse variance weighted (IVW) estimator (Burgess et al., 2013),
+pooling SNP-exposure/SNP-outcome estimates inversely weighted by their
+standard error. Since IVW assumes that all SNPs are valid instruments or
+that the sum of the directional bias is zero, the robustness of
+significant results was tested in sensitivity analyses based on weighted
+median and MR-Egger estimators. The weighted median (Bowden et al.,
+2016) estimator is the median of the weighted empirical distribution
+function of individual SNP ratio estimates, providing consistent effect
+estimates even if half of the instruments are invalid. The MR-Egger
+regression (Bowden et al., 2015) consists of a weighted linear
+regression similar to IVW relying on the InSIDE assumption (the
+magnitude of any pleiotropic effects should not correlate with the
+magnitude of the main effect), providing valid effect estimate even if
+all SNPs are invalid instruments under the 'NOME' assumption
+(uncertainty in the SNPexposure association estimates is negligible)
+(Bowden et al., 2017). At least 10 genetic instruments are recommended
+(Bowden et al., 2015) to run adequately powered MR-Egger analyses.
+Furthermore, heterogeneity among included SNPs was tested via Cochran's
+Q test, single SNP, and leave-one-out SNP analyses. The presence of
+potential horizontal pleiotropy (a genetic instrument for exposure
+influencing the outcome by mechanisms other than exposure) was tested
+using the MR-Egger intercept (Bowden et al., 2017) and the MR-PRESSO
+(pleiotropy residual sum and outlier) method (Verbanck et al., 2018)
+(supplemental methods). Finally, we performed reversed univariable 2SMR
+analyses testing the potential causal impact of depression liability on
+AC circulating levels."
+
+```{r results, eval = FALSE}
+#load(here("sumstats", "all_processed_serum albumin.RData"))
+main_results_mr <- list()
+
+for (i in names(preprocessed_list)) {
+  preprocessed_data <- preprocessed_list[[i]][["data"]]
+  
+  if (nrow(preprocessed_data) < 2) {
+    cat("Only one SNP for", i, "\n")
+    next
+  }
+  
+  # Run MR using various methods
+  mr_output <- mr(preprocessed_data, method_list = c("mr_ivw", "mr_weighted_median", "mr_egger_regression"))
+  mr_or <- generate_odds_ratios(mr_output)
+  
+  # Print MR results
+  print(mr_or)
+  
+  # Scatter plot
+  scatterplot <- mr_scatter_plot(mr_output, preprocessed_data)
+  
+  # Instrument strength
+  fstatistic <- (preprocessed_data$beta.exposure^2) / (preprocessed_data$se.exposure^2)
+  f_range <- c(min(fstatistic), max(fstatistic))
+  
+  # Initialize lists for optional results
+  mr_het <- mr_leave1out <- oneout_plot <- mr_1snp <- onein_plot <- mr_pleiot <- mr_presso_output <- NULL
+  
+  # Conditional checks for SNP count
+  if (nrow(preprocessed_data) > 1) {
+    # Heterogeneity
+    if (length(unique(preprocessed_data$SNP)) > 1) {
+      mr_het <- tryCatch(mr_heterogeneity(preprocessed_data), error = function(e) NULL)
+      mr_leave1out <- tryCatch(mr_leaveoneout(preprocessed_data), error = function(e) NULL)
+      oneout_plot <- tryCatch(mr_leaveoneout_plot(mr_leave1out), error = function(e) NULL)
+      mr_1snp <- tryCatch(mr_singlesnp(preprocessed_data), error = function(e) NULL)
+      onein_plot <- tryCatch(mr_forest_plot(mr_1snp), error = function(e) NULL)
+    } else {
+      cat("Not enough SNPs available for heterogeneity analysis of '", i, "'\n", sep = "")
+    }
+    
+    # Horizontal Pleiotropy
+    if (length(unique(preprocessed_data$SNP)) > 2) {
+      mr_pleiot <- tryCatch(mr_pleiotropy_test(preprocessed_data), error = function(e) NULL)
+      mr_presso_output <- tryCatch(
+        run_mr_presso(preprocessed_data, NbDistribution = 1000, SignifThreshold = 0.05),
+        error = function(e) NULL
+      )
+    } else {
+      cat("Not enough SNPs available for pleiotropy analysis of '", i, "'\n", sep = "")
+    }
+  } else {
+    cat("Not enough SNPs available for analysis of '", i, "'\n", sep = "")
+  }
+  
+  # Print results for pleiotropy test
+  if (!is.null(mr_pleiot)) print(mr_pleiot)
+  
+  # Store results in list
+  main_results_mr[[i]] <- list(
+    mr_output = mr_output, mr_or = mr_or, scatterplot = scatterplot,
+    f_range = f_range, mr_het = mr_het, mr_leave1out = mr_leave1out,
+    oneout_plot = oneout_plot, mr_1snp = mr_1snp, onein_plot = onein_plot,
+    mr_pleiot = mr_pleiot, mr_presso_output = mr_presso_output
+  )
+}
+
+main_results_mr
+
+#save(main_results_mr, file = here("/Users/angelakoloi/Desktop/yfs metabolites/2007/data/MR analysis/Results", "MR_DEP-CVD_results_serum albumin.RData"))
+```
+
+# Main results (basic OR)
+
+```{r}
+#load(here("Results", "MR", "MR_DEP-CVD_results_serum albumin.RData"))
+
+# Nice table of main results
+or_full_df <- as.data.frame(do.call("rbind", map(main_results_mr, "mr_or")))[c(3,4,5,6,12,13,14,9)]
+or_full_df$pval <- formatC(or_full_df$pval, format = "e", digits = 2) # pvalues to scientific notation
+or_full_df <- or_full_df %>% 
+  rename("or.lci95" = "or_lci95", "or.uci95" = "or_uci95") %>% # change separator
+  mutate(across(c(or, or.lci95, or.uci95), ~ round(.x, digits = 2))) # round to two digits
+
+or_wide_df <- pivot_wider(
+  data = or_full_df,
+  names_from = method,
+  names_vary = "slowest",
+  names_glue = "{method}_{.value}",
+  values_from = c(or, or.lci95, or.uci95, pval)
+)
+
+flextable(or_wide_df) %>% separate_header(split = "_") %>%  fontsize(size = 14) %>% fit_to_width(8) %>% autofit()
+```
+
+Note that we didn't expect an effect for CES (mostly genes specific to
+heart development) and indeed the estimate is not significant.
+
+```{r}
+# load(here("Results", "CVD_mr_results_serum albumin.RData"))
+# 
+# # Nice table of main results
+full_df <- as.data.frame(do.call("rbind", map(main_results_mr, "mr_output")))[c(3,4,5,6,7,8,9)]
+or_full_df$pval <- formatC(or_full_df$pval, format = "e", digits = 2) # pvalues to scientific notation
+or_full_df <- or_full_df %>% 
+rename("or.lci95" = "or_lci95", "or.uci95" = "or_uci95") %>% # change separator
+mutate(across(c(or, or.lci95, or.uci95), ~ round(.x, digits = 2))) # round to two digits
+# 
+or_wide_df <- pivot_wider(
+   data = or_full_df,
+   names_from = method,
+   names_vary = "slowest",
+   names_glue = "{method}_{.value}",
+   values_from = c(or, or.lci95, or.uci95, pval)
+)
+# 
+flextable(or_wide_df) %>% separate_header(split = "_")
+main_results_mr
+```
+
+```{r fig.dim = c(8, 17)}
+# Plot collection
+# plots <- unlist(map(main_results_mr, "scatterplot"))
+p1 <- main_results_mr$ALLSTROKE$scatterplot$v3kGW8.7mNsA8
+p2 <- main_results_mr$IS$scatterplot$v3kGW8.gYxmey
+p6 <- main_results_mr$CAD$scatterplot$v3kGW8.AEKi7w
+p4 <- main_results_mr$CES$scatterplot$v3kGW8.a4pcPh
+p5 <- main_results_mr$LAS$scatterplot$v3kGW8.bpulR3
+p3 <- main_results_mr$SVD$scatterplot$v3kGW8.KeIQy5
+p7 <- main_results_mr$CAC$scatterplot$e7VlWv.JiGy5p
+p8 <- main_results_mr$CIMT$scatterplot$e7VlWv.fv9RyK
+
+p1 + p2 + p3 + p4 + p5 + p6 + p7 + p8 +
+  plot_layout(ncol = 2, guides = "collect") &
+  theme(legend.position = "bottom")
+```
+
+# MR more analyses
+
+## Instrument strength
+
+```{r }
+# # Test instrument strength
+# fstatistic <- (harmonised_data$beta.exposure^2) / (harmonised_data$se.exposure^2) # approximation for sumstats
+# min(fstatistic) # F should not be < 10 (Pierce et al. 2011)
+# max(fstatistic)
+
+fstats <- as.data.frame(do.call("rbind", map(main_results_mr, "f_range")))
+fstats <- cbind(or_wide_df$nsnp, round(fstats, 4))
+colnames(fstats) <- c("N SNPs", "F-statistics_min", "F-statistics_max" )
+
+flextable(fstats %>% rownames_to_column( var = "Outcome")) %>% separate_header()
+```
+
+Probably these make sense..? There is large overlap in the SNPs involved
+for each outcome, so the SNP with the weakest and the SNP with the
+strongest effect on the exposure could feasibly be the same for all
+stroke outcomes.
+
+# Heterogeneity
+
+## Cochran's Q
+
+A significant Cochran's Q indicates presence of an outlier.
+
+```{r }
+# # Heterogeneity
+# mr_het <- mr_heterogeneity(harmonised_data) # this give Cochran's Q (if significant indicates outlier), one for Egger + one for IVW
+qstats <- as.data.frame(do.call("rbind", map(main_results_mr, "mr_het")))
+qstats["Q"] <- round(qstats["Q"])
+qstats["df"] <- qstats["Q_df"]
+qstats["pvalue"] <- formatC(qstats$Q_pval, format = "e", digits = 2)
+qstats <- cbind(qstats[c("outcome", "exposure", "method", "Q", "df", "pvalue")])
+
+q_wide <- pivot_wider(
+  data = qstats,
+  names_from = method,
+  names_vary = "slowest",
+  names_glue = "{method}_{.value}",
+  values_from = c(Q, df, pvalue)
+)
+
+flextable(q_wide) %>% separate_header(split = "_") %>% add_header_row(values = c("", "Cochran's Q"), colwidths = c(2, 6))
+```
+
+## Leave one out analysis
+
+```{r }
+map(main_results_mr, "oneout_plot")
+```
+
+## Single SNP analysis
+
+```{r }
+map(main_results_mr, "onein_plot")
+```
+
+# Horizontal Pleiotropy
+
+## MR-Egger Intercept
+
+```{r }
+# Pleiotropy
+mr_pleiot <- as.data.frame(do.call("rbind", map(main_results_mr, "mr_pleiot")))
+mr_pleiot[c("egger_intercept", "se")] <- round(mr_pleiot[c("egger_intercept", "se")], 5)
+mr_pleiot["pval"] <- formatC(mr_pleiot$pval, format = "e", digits = 2)
+
+flextable(mr_pleiot[-c(1,2)])
+```
+
+## MR presso
+
+```{r}
+# MR_presso
+mr_presso <- map(main_results_mr, c("mr_presso_output"))
+
+outlier_corrected <- do.call( "rbind", 
+                              lapply(mr_presso, function(x) {
+                                x[[1]][["Main MR results"]][2, c("Causal Estimate", "Sd", "P-value")]
+                                }))
+
+global_test <- as.data.frame(do.call( "rbind", 
+                              lapply(mr_presso, function(x) {
+                                unlist(x[[1]][["MR-PRESSO results"]][["Global Test"]])
+                                })))
+
+distortion_coefficient <- as.data.frame(do.call( "rbind", 
+                              lapply(mr_presso, function(x) {
+                                x[[1]][["MR-PRESSO results"]][["Distortion Test"]][["Distortion Coefficient"]]
+                                })))
+distortion_pvalue <- as.data.frame(do.call( "rbind", 
+                              lapply(mr_presso, function(x) {
+                                unlist(x[[1]][["MR-PRESSO results"]][["Distortion Test"]][["Pvalue"]])
+                                })))
+
+
+mr_presso_table <- cbind(or_wide_df$exposure, or_wide_df$nsnp, global_test, outlier_corrected, distortion_coefficient, distortion_pvalue)
+colnames(mr_presso_table) <- c("Exposure", "N SNPs", "GlobalTest_RSS", "GlobalTest_pvalue", "OutlierCorrected_estimate", "OutlierCorrected_se", "OutlierCorrected_pvalue", "DistortionTest_Coefficient", "DistortionTest_pvalue")
+mr_presso_table$OutlierCorrected_pvalue <- formatC(mr_presso_table$OutlierCorrected_pvalue, format = "e", digits = 2)
+mr_presso_table$GlobalTest_RSS <- round(as.numeric(mr_presso_table$GlobalTest_RSS), 3)
+
+
+flextable(mr_presso_table %>% rownames_to_column( var = "Outcome")) %>% separate_header() %>% fit_to_width(8)
+```
